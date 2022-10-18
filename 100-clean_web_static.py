@@ -1,18 +1,16 @@
 #!/usr/bin/python3
-# Fabfile to delete out-of-date archives.
-import os
+"""
+2. Deploy archive!
+"""
 from fabric.api import *
-
-env.hosts = ["35.237.92.54", "3.238.90.226"]
+from datetime import datetime
+from os.path import exists, isdir
+env.hosts = ['54.224.105.134', '34.239.247.122']
 
 
 def do_clean(number=0):
-    """Delete out-of-date archives.
-    Args:
-        number (int): The number of archives to keep.
-    If number is 0 or 1, keeps only the most recent archive. If
-    number is 2, keeps the most and second-most recent archives,
-    etc.
+    """
+    Delete old releases
     """
     number = 1 if int(number) == 0 else int(number)
 
