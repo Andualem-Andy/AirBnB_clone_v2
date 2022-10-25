@@ -1,56 +1,51 @@
 #!/usr/bin/python3
 """
-2. Deploy archive!
+file to practice use of Fabric
 """
+import os.path
 from fabric.api import *
-from datetime import datetime
-from os.path import exists, isdir
-env.hosts = ['54.224.105.134', '34.239.247.122']
+from fabric.operations import run, put, sudo
+import time
+env.hosts = ['52.90.98.156', '52.207.85.204']
 
 
 def do_pack():
-    """
-    compress files
-    """
+    timestr = time.strftime("%Y%m%d%H%M%S")
     try:
-        date = datetime.now().strftime("%Y%m%d%H%M%S")
-        if isdir("versions") is False:
-            local("mkdir versions")
-        file_name = "versions/web_static_{}.tgz".format(date)
-        local("tar -cvzf {} web_static".format(file_name))
-        return file_name
-    except Exception as e:
-        return e
+        local("mkdir -p versions")
+        local("tar -cvzf versions/web_static_{}.tgz web_static/".
+              format(timestr))
+        return ("versions/web_static_{}.tgz".format(timestr))
+    except:
+        return None
 
 
 def do_deploy(archive_path):
-    """
-    deploy
-    """
-    if exists(archive_path) is False:
+    """ deploy """
+    if (os.path.isfile(archive_path) is False):
         return False
+
     try:
-        file_n = archive_path.split("/")[-1]
-        no_ext = file_n.split(".")[0]
-        path = "/data/web_static/releases/"
-        put(archive_path, '/tmp/')
-        run('mkdir -p {}{}/'.format(path, no_ext))
-        run('tar -xzf /tmp/{} -C {}{}/'.format(file_n, path, no_ext))
-        run('rm /tmp/{}'.format(file_n))
-        run('mv {0}{1}/web_static/* {0}{1}/'.format(path, no_ext))
-        run('rm -rf {}{}/web_static'.format(path, no_ext))
-        run('rm -rf /data/web_static/current')
-        run('ln -s {}{}/ /data/web_static/current'.format(path, no_ext))
+        new_comp = archive_path.split("/")[-1]
+        new_folder = ("/data/web_static/releases/" + new_comp.split(".")[0])
+        put(archive_path, "/tmp/")
+        run("sudo mkdir -p {}".format(new_folder))
+        run("sudo tar -xzf /tmp/{} -C {}".
+            format(new_comp, new_folder))
+        run("sudo rm /tmp/{}".format(new_comp))
+        run("sudo mv {}/web_static/* {}/".format(new_folder, new_folder))
+        run("sudo rm -rf {}/web_static".format(new_folder))
+        run('sudo rm -rf /data/web_static/current')
+        run("sudo ln -s {} /data/web_static/current".format(new_folder))
         return True
-    except Exception as e:
-        return e
+    except:
+        return False
 
 
 def deploy():
-    """
-    pack and deploy
-    """
-    archive_path = do_pack()
-    if archive_path is None:
+    try:
+        archive_address = do_pack()
+        val = do_deploy(archive_address)
+        return val
+    except:
         return False
-    return do_deploy(archive_path)

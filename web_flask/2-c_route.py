@@ -1,34 +1,31 @@
 #!/usr/bin/python3
 """
-Server routes
+This is module 2-c_route.
+It starts a minimal Flask apllication.
+Run it with python3 -m 2-c_route or ./2-c_route
 """
 from flask import Flask
 app = Flask(__name__)
 
 
-@app.route('/', strict_slashes=False)
-def index():
-    """
-    Hello HBNB!
-    """
-    return 'Hello HBNB!'
+@app.route('/')
+def hello_hbnb():
+    """flask hello world"""
+    return "Hello HBNB!"
 
 
-@app.route('/hbnb', strict_slashes=False)
+@app.route('/hbnb')
 def hbnb():
-    """
-    HBNB
-    """
-    return 'HBNB'
+    """add a path to the url"""
+    return "HBNB"
 
 
-@app.route('/c/<text>', strict_slashes=False)
-def cisfun(text):
-    """
-    C Endpoint
-    """
-    return 'C ' + text.replace('_', ' ')
+@app.route('/c/<text>')
+def c_text(text):
+    """make a simple variable rule"""
+    return "C {}".format(text.replace("_", " "))
 
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port='5000')
+if __name__ == "__main__":
+    # values here are the default, mentioned as keepsake
+    app.run(host="0.0.0.0", port="5000")

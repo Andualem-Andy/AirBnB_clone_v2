@@ -1,175 +1,167 @@
-#!/usr/bin/python3
-''' module for file_storage tests '''
-import unittest
-import MySQLdb
-from models.user import User
-from models import storage
 from datetime import datetime
-import os
+from models import *
+from models.amenity import Amenity
+from models.base_model import Base
+from models.engine.db_storage import DBStorage
+from models.state import State
+import os.path
+from os import getenv
+import unittest
 
-@unittest.skipIf(os.getenv('HBNB_TYPE_STORAGE') != 'db',
-                 'db_storage test not supported')
-class TestDBStorage(unittest.TestCase):
-    '''testing dbstorage engine'''
-    def test_new_and_save(self):
-        '''testing  the new and save methods'''
-        db = MySQLdb.connect(user=os.getenv('HBNB_MYSQL_USER'),
-                             host=os.getenv('HBNB_MYSQL_HOST'),
-                             passwd=os.getenv('HBNB_MYSQL_PWD'),
-                             port=3306,
-                             db=os.getenv('HBNB_MYSQL_DB'))
-        new_user = User(**{'first_name': 'jack',
-                           'last_name': 'bond',
-                           'email': 'jack@bond.com',
-                           'password': 12345})
-        cur = db.cursor()
-        cur.execute('SELECT COUNT(*) FROM users')
-        old_count = cur.fetchall()
-        cur.close()
-        db.close()
-        new_user.save()
-        db = MySQLdb.connect(user=os.getenv('HBNB_MYSQL_USER'),
-                             host=os.getenv('HBNB_MYSQL_HOST'),
-                             passwd=os.getenv('HBNB_MYSQL_PWD'),
-                             port=3306,
-                             db=os.getenv('HBNB_MYSQL_DB'))
-        cur = db.cursor()
-        cur.execute('SELECT COUNT(*) FROM users')
-        new_count = cur.fetchall()
-        self.assertEqual(new_count[0][0], old_count[0][0] + 1)
-        cur.close()
-        db.close()
+
+@unittest.skipIf(os.getenv('HBNB_TYPE_STORAGE', 'fs') != 'db', "db")
+class Test_DBStorage(unittest.TestCase):
+    """
+    Test the file storage class
+    """
+    @classmethod
+    def setUpClass(cls):
+        """We cannot create a new session as everything depends on storage in
+        init"""
+        test_args = {'updated_at': datetime(2017, 2, 12, 00, 31, 53, 331997),
+                     'id': "0234",
+                     'created_at': datetime(2017, 2, 12, 00, 31, 53, 331900),
+                     'name': 'wifi'}
+        cls.model = Amenity(**test_args)
+
+    @classmethod
+    def tearDownClass(cls):
+        storage.close()
+
+    def test_all(self):
+        l1 = len(storage.all('State'))
+        state = State(name="State test all")
+        state.save()
+        output = storage.all('State')
+        self.assertEqual(len(output), l1 + 1)
+        self.assertIn(state.id, output.keys())
 
     def test_new(self):
-        """ New object is correctly added to database """
-        new = User(
-            email='john2020@gmail.com',
-            password='password',
-            first_name='John',
-            last_name='Zoldyck'
-        )
-        self.assertFalse(new in storage.all().values())
-        new.save()
-        self.assertTrue(new in storage.all().values())
-        dbc = MySQLdb.connect(
-            host=os.getenv('HBNB_MYSQL_HOST'),
-            port=3306,
-            user=os.getenv('HBNB_MYSQL_USER'),
-            passwd=os.getenv('HBNB_MYSQL_PWD'),
-            db=os.getenv('HBNB_MYSQL_DB')
-        )
-        cursor = dbc.cursor()
-        cursor.execute('SELECT * FROM users WHERE id="{}"'.format(new.id))
-        result = cursor.fetchone()
-        self.assertTrue(result is not None)
-        self.assertIn('john2020@gmail.com', result)
-        self.assertIn('password', result)
-        self.assertIn('John', result)
-        self.assertIn('Zoldyck', result)
-        cursor.close()
-        dbc.close()
-
-    def test_delete(self):
-        """ Object is correctly deleted from database """
-        new = User(
-            email='john2020@gmail.com',
-            password='password',
-            first_name='John',
-            last_name='Zoldyck'
-        )
-        obj_key = 'User.{}'.format(new.id)
-        dbc = MySQLdb.connect(
-            host=os.getenv('HBNB_MYSQL_HOST'),
-            port=3306,
-            user=os.getenv('HBNB_MYSQL_USER'),
-            passwd=os.getenv('HBNB_MYSQL_PWD'),
-            db=os.getenv('HBNB_MYSQL_DB')
-        )
-        new.save()
-        self.assertTrue(new in storage.all().values())
-        cursor = dbc.cursor()
-        cursor.execute('SELECT * FROM users WHERE id="{}"'.format(new.id))
-        result = cursor.fetchone()
-        self.assertTrue(result is not None)
-        self.assertIn('john2020@gmail.com', result)
-        self.assertIn('password', result)
-        self.assertIn('John', result)
-        self.assertIn('Zoldyck', result)
-        self.assertIn(obj_key, storage.all(User).keys())
-        new.delete()
-        self.assertNotIn(obj_key, storage.all(User).keys())
-        cursor.close()
-        dbc.close()
-
-    def test_reload(self):
-        """ Tests the reloading of the database session """
-        dbc = MySQLdb.connect(
-            host=os.getenv('HBNB_MYSQL_HOST'),
-            port=3306,
-            user=os.getenv('HBNB_MYSQL_USER'),
-            passwd=os.getenv('HBNB_MYSQL_PWD'),
-            db=os.getenv('HBNB_MYSQL_DB')
-        )
-        cursor = dbc.cursor()
-        cursor.execute(
-            'INSERT INTO users(id, created_at, updated_at, email, password' +
-            ', first_name, last_name) VALUES(%s, %s, %s, %s, %s, %s, %s);',
-            [
-                '4447-by-me',
-                str(datetime.now()),
-                str(datetime.now()),
-                'ben_pike@yahoo.com',
-                'pass',
-                'Benjamin',
-                'Pike',
-            ]
-        )
-        self.assertNotIn('User.4447-by-me', storage.all())
-        dbc.commit()
-        storage.reload()
-        self.assertIn('User.4447-by-me', storage.all())
-        cursor.close()
-        dbc.close()
+        # note: we cannot assume order of test is order written
+        test_len = len(storage.all())
+        # self.assertEqual(len(storage.all()), self.test_len)
+        self.model.save()
+        self.assertEqual(len(storage.all()), test_len + 1)
+        a = Amenity(name="thing")
+        a.save()
+        self.assertEqual(len(storage.all()), test_len + 2)
 
     def test_save(self):
-        """ object is successfully saved to database """
-        new = User(
-            email='john2020@gmail.com',
-            password='password',
-            first_name='John',
-            last_name='Zoldyck'
-        )
-        dbc = MySQLdb.connect(
-            host=os.getenv('HBNB_MYSQL_HOST'),
-            port=3306,
-            user=os.getenv('HBNB_MYSQL_USER'),
-            passwd=os.getenv('HBNB_MYSQL_PWD'),
-            db=os.getenv('HBNB_MYSQL_DB')
-        )
-        cursor = dbc.cursor()
-        cursor.execute('SELECT * FROM users WHERE id="{}"'.format(new.id))
-        result = cursor.fetchone()
-        cursor.execute('SELECT COUNT(*) FROM users;')
-        old_cnt = cursor.fetchone()[0]
-        self.assertTrue(result is None)
-        self.assertFalse(new in storage.all().values())
-        new.save()
-        dbc1 = MySQLdb.connect(
-            host=os.getenv('HBNB_MYSQL_HOST'),
-            port=3306,
-            user=os.getenv('HBNB_MYSQL_USER'),
-            passwd=os.getenv('HBNB_MYSQL_PWD'),
-            db=os.getenv('HBNB_MYSQL_DB')
-        )
-        cursor1 = dbc1.cursor()
-        cursor1.execute('SELECT * FROM users WHERE id="{}"'.format(new.id))
-        result = cursor1.fetchone()
-        cursor1.execute('SELECT COUNT(*) FROM users;')
-        new_cnt = cursor1.fetchone()[0]
-        self.assertFalse(result is None)
-        self.assertEqual(old_cnt + 1, new_cnt)
-        self.assertTrue(new in storage.all().values())
-        cursor1.close()
-        dbc1.close()
-        cursor.close()
-        dbc.close()
+        test_len = len(storage.all())
+        a = Amenity(name="another")
+        a.save()
+        self.assertEqual(len(storage.all()), test_len + 1)
+        b = State(name="california")
+        self.assertNotEqual(len(storage.all()), test_len + 2)
+        b.save()
+        self.assertEqual(len(storage.all()), test_len + 2)
+
+    def test_delete(self):
+        all_storage = storage.all()
+        test_len = len(all_storage)
+        for v in all_storage.values():
+            storage.delete(v)
+            test_len -= 1
+            self.assertGreaterEqual(test_len, storage.count())
+
+    def test_reload(self):
+        """not actually testing reload as it creates a parallel new session"""
+        a = Amenity(name="different")
+        a.save()
+        for value in storage.all().values():
+            self.assertIsInstance(value.created_at, datetime)
+
+    def test_state(self):
+        """test State creation with a keyword argument"""
+        a = State(name="Kamchatka", id="Kamchatka666")
+        a.save()
+        self.assertIn("Kamchatka666", storage.all("State").keys())
+
+    def test_count(self):
+        """test count all"""
+        test_len = len(storage.all())
+        a = Amenity(name="test_amenity")
+        a.save()
+        self.assertEqual(test_len + 1, storage.count())
+        b = State(name="State test count")
+        b.save()
+        self.assertEqual(test_len + 2, storage.count())
+        storage.delete(b)
+        self.assertEqual(test_len + 1, storage.count())
+
+    def test_count_amenity(self):
+        """test count with an argument"""
+        test_len = len(storage.all("Amenity"))
+        a = Amenity(name="test_amenity_2")
+        a.save()
+        self.assertEqual(test_len + 1, storage.count("Amenity"))
+        storage.delete(a)
+        self.assertEqual(test_len, storage.count("Amenity"))
+
+    def test_count_state(self):
+        """test count with an argument"""
+        test_len = len(storage.all("State"))
+        a = State(name="test_state_count_arg")
+        a.save()
+        self.assertEqual(test_len + 1, storage.count("State"))
+        storage.delete(a)
+        self.assertEqual(test_len, storage.count("State"))
+
+    def test_count_bad_arg(self):
+        """test count with dummy class name"""
+        self.assertEqual(-1, storage.count("Dummy"))
+
+    def test_get_amenity(self):
+        """test get with valid cls and id"""
+        a = Amenity(name="test_amenity3", id="test_3")
+        a.save()
+        result = storage.get("Amenity", "test_3")
+        self.assertEqual(a.name, result.name)
+        # does not work as the database loses last argument tzinfo for datetime
+        # self.assertEqual(a.created_at, result.created_at)
+        self.assertEqual(a.created_at.year, result.created_at.year)
+        self.assertEqual(a.created_at.month, result.created_at.month)
+        self.assertEqual(a.created_at.day, result.created_at.day)
+        self.assertEqual(a.created_at.hour, result.created_at.hour)
+        self.assertEqual(a.created_at.minute, result.created_at.minute)
+        self.assertEqual(a.created_at.second, result.created_at.second)
+        storage.delete(a)
+        result = storage.get("Amenity", "test_3")
+        self.assertIsNone(result)
+
+    def test_get_state(self):
+        """test get with valid cls and id"""
+        a = State(name="test_state3", id="test_3")
+        a.save()
+        result = storage.get("State", "test_3")
+        self.assertEqual(a.name, result.name)
+        # does not work as the database loses last argument tzinfo for datetime
+        # self.assertEqual(a.created_at, result.created_at)
+        self.assertEqual(a.created_at.year, result.created_at.year)
+        self.assertEqual(a.created_at.month, result.created_at.month)
+        self.assertEqual(a.created_at.day, result.created_at.day)
+        self.assertEqual(a.created_at.hour, result.created_at.hour)
+        self.assertEqual(a.created_at.minute, result.created_at.minute)
+        self.assertEqual(a.created_at.second, result.created_at.second)
+        storage.delete(a)
+        result = storage.get("State", "test_3")
+        self.assertIsNone(result)
+
+    def test_get_bad_cls(self):
+        """test get with invalid cls"""
+        result = storage.get("Dummy", "test")
+        self.assertIsNone(result)
+
+    def test_get_bad_id(self):
+        """test get with invalid id"""
+        result = storage.get("State", "very_bad_id")
+        self.assertIsNone(result)
+
+
+if __name__ == "__main__":
+    import sys
+    import os
+    sys.path.insert(1, os.path.join(os.path.split(__file__)[0], '../../..'))
+    from models import *
+    from models.engine.file_storage import FileStorage
+    unittest.main()
